@@ -1,9 +1,11 @@
-import { normalizers, RPC } from "ckb-js-toolkit";
+import { normalizers, Reader, RPC } from "ckb-js-toolkit";
 import {
   core,
+  utils,
   Cell,
   Hash,
   HexNumber,
+  HexString,
   Transaction,
   TransactionWithStatus,
   QueryOptions,
@@ -15,8 +17,17 @@ import {
 } from "@ckb-lumos/indexer";
 import { Config, ChainService, SubmitTxs } from "@ckb-godwoken/godwoken";
 import { DeploymentConfig } from "./config";
-import { SerializeHeaderInfo } from "../schemas/godwoken";
-import { DepositionRequest, HeaderInfo, NormalizeHeaderInfo } from "./types";
+import {
+  L2Block,
+  SerializeHeaderInfo,
+  SerializeCustodianLockArgs,
+} from "../schemas/godwoken";
+import {
+  DepositionRequest,
+  HeaderInfo,
+  NormalizeHeaderInfo,
+  NormalizeCustodianLockArgs,
+} from "./types";
 import {
   DepositionEntry,
   scanDepositionCellsInCommittedL2Block,
@@ -198,7 +209,6 @@ export class Runner {
     // state machine. Each new block will also incur new timestamp change. At certain
     // time, we need to decide to issue a new L2 block.
 
-    // TODO: use subscribeMedianTime from lumos
     const callback = this._newBlockReceived.bind(this);
     const medianTimeEmitter = this.indexer.subscribeMedianTime();
     medianTimeEmitter.on("changed", callback);
@@ -249,6 +259,57 @@ export class Runner {
     return results[0];
   }
 
+  _generateCustodianCells(
+    packedl2Block: ArrayBuffer,
+    depositionEntries: DepositionEntry[]
+  ) {
+    const l2Block = new L2Block(packedl2Block);
+    const rawL2Block = l2Block.getRaw();
+    const data: DataView = (rawL2Block as any).view;
+    const l2BlockHash = utils.ckbHash(data.buffer).serializeJson();
+    const l2BlockNumber =
+      "0x" + rawL2Block.getNumber().toLittleEndianUint64().toString(16);
+    const custodianCells = depositionEntries.map(({ cell, lockArgs }) => {
+      const custodianLockArgs = {
+        owner_lock_hash: new Reader(
+          lockArgs.getOwnerLockHash().raw()
+        ).serializeJson(),
+        deposition_block_hash: l2BlockHash,
+        deposition_block_number: l2BlockNumber,
+      };
+      const packedCustodianLockArgs = SerializeCustodianLockArgs(
+        NormalizeCustodianLockArgs(custodianLockArgs)
+      );
+      const buffer = new ArrayBuffer(32 + packedCustodianLockArgs.byteLength);
+      const array = new Uint8Array(buffer);
+      array.set(
+        new Uint8Array(
+          new Reader(this.deploymentConfig.rollup_type_hash).toArrayBuffer()
+        ),
+        0
+      );
+      array.set(new Uint8Array(packedCustodianLockArgs), 32);
+      const lock = {
+        code_hash: this.deploymentConfig.custodian_lock.code_hash,
+        hash_type: this.deploymentConfig.custodian_lock.hash_type,
+        args: new Reader(buffer).serializeJson(),
+      };
+      return {
+        capacity: cell.cell_output.capacity,
+        lock,
+        type: cell.cell_output.type,
+      };
+    });
+    const custodianData: HexString[] = depositionEntries.map(
+      ({ cell }) => cell.data
+    );
+
+    return {
+      cells: custodianCells,
+      data: custodianData,
+    };
+  }
+
   _newBlockReceived(medianTimeHex: HexNumber) {
     (async () => {
       await this._syncToTip();
@@ -257,7 +318,7 @@ export class Runner {
       if (medianTime - this.lastProduceBlockTime >= 20n * 1000n) {
         const depositionEntries = await this._queryValidDepositionRequests();
         const depositionRequests = depositionEntries.map(
-          ({ request }) => request
+          ({ packedRequest }) => packedRequest
         );
         const depositionInputs = depositionEntries.map(({ cell }) => {
           return {
@@ -268,20 +329,23 @@ export class Runner {
         const param = {
           aggregator_id: "0x0",
           deposition_requests: depositionRequests,
-          // This will be removed later
-          withdrawal_requests: [],
         };
         const {
-          block: l2Block,
+          block: packedl2Block,
           global_state,
         } = await this.chainService.produce_block(param);
+
+        const {
+          cells: custodianCells,
+          data: custodianData,
+        } = this._generateCustodianCells(packedl2Block, depositionEntries);
         const cell = await this._queryLiveRollupCell();
         const tx: Transaction = {
           version: "0x0",
           // TODO: fill in cell deps
           cell_deps: [],
           header_deps: [],
-          // TODO: fill in custodian cells
+          // TODO: fill in withdrawed custodian cells
           inputs: [
             {
               previous_output: cell.out_point!,
@@ -289,17 +353,12 @@ export class Runner {
               since: "0x0",
             },
           ].concat(depositionInputs),
-          // TODO: fill in created custodian cells
           // TODO: fill in created withdraw cells
-          outputs: [cell.cell_output],
-          outputs_data: [
-            // TODO: fill in global state from above
-            "0x0",
-          ],
-          witnesses: [
-            // TODO: fill in l2block from above
-            "0x0",
-          ],
+          outputs: [cell.cell_output].concat(custodianCells),
+          outputs_data: [new Reader(global_state).serializeJson()].concat(
+            custodianData
+          ),
+          witnesses: [new Reader(packedl2Block).serializeJson()],
         };
         const hash = await this.rpc.send_transaction(tx);
         console.log(`Submitted l2 block in ${hash}`);

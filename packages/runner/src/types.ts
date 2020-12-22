@@ -99,3 +99,20 @@ export function NormalizeHeaderInfo(
     block_hash: normalizeRawData(32),
   });
 }
+
+export interface CustodianLockArgs {
+  owner_lock_hash: Hash;
+  deposition_block_hash: Hash;
+  deposition_block_number: HexNumber;
+}
+
+export function NormalizeCustodianLockArgs(
+  args: object,
+  { debugPath = "custondian_lock_args" } = {}
+) {
+  return normalizeObject(debugPath, args, {
+    owner_lock_hash: normalizeRawData(32),
+    deposition_block_hash: normalizeRawData(32),
+    deposition_block_number: normalizeHexNumber(8),
+  });
+}

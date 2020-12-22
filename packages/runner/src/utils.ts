@@ -28,7 +28,7 @@ export async function scanDepositionCellsInCommittedL2Block(
     const cell = await resolveOutPoint(input.previous_output, rpc);
     const entry = await tryExtractDepositionRequest(cell, config);
     if (entry) {
-      results.push(entry.request);
+      results.push(entry.packedRequest);
     }
   }
   return results;
@@ -56,8 +56,10 @@ async function resolveOutPoint(outPoint: OutPoint, rpc: RPC): Promise<Cell> {
 
 export interface DepositionEntry {
   cell: Cell;
+  lockArgs: DepositionLockArgs;
+  request: DepositionRequest;
   // Packed binary of gw_types::packed::DepositionRequest type
-  request: ArrayBuffer;
+  packedRequest: ArrayBuffer;
 }
 
 export async function tryExtractDepositionRequest(
@@ -103,17 +105,19 @@ export async function tryExtractDepositionRequest(
     hash_type: "data",
     args: "0x",
   };
-  const depositionRequest = {
+  const request = {
     amount,
     capacity: cell.cell_output.capacity,
     script: DenormalizeScript(lockArgs.getLayer2Lock()),
     sudtScript,
   };
-  const request = SerializeDepositionRequest(
-    NormalizeDepositionRequest(depositionRequest)
+  const packedRequest = SerializeDepositionRequest(
+    NormalizeDepositionRequest(request)
   );
   return {
     cell,
+    lockArgs,
     request,
+    packedRequest,
   };
 }
