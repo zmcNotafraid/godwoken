@@ -3,6 +3,7 @@ import {
   core,
   Cell,
   Hash,
+  HexNumber,
   Transaction,
   TransactionWithStatus,
   QueryOptions,
@@ -198,9 +199,11 @@ export class Runner {
     // time, we need to decide to issue a new L2 block.
 
     // TODO: use subscribeMedianTime from lumos
-    const id = setInterval(this._newBlockReceived.bind(this), 10 * 1000);
+    const callback = this._newBlockReceived.bind(this);
+    const medianTimeEmitter = this.indexer.subscribeMedianTime();
+    medianTimeEmitter.on("changed", callback);
     this.cancelListener = () => {
-      clearInterval(id);
+      medianTimeEmitter.off("changed", callback);
     };
   }
 
@@ -246,10 +249,10 @@ export class Runner {
     return results[0];
   }
 
-  _newBlockReceived() {
+  _newBlockReceived(medianTimeHex: HexNumber) {
     (async () => {
-      const medianTime = BigInt((await this.rpc.get_block_info()).median_time);
       await this._syncToTip();
+      const medianTime = BigInt(medianTimeHex);
       // TODO: change to PoA later, right now it issues a new L2 block every 20 seconds.
       if (medianTime - this.lastProduceBlockTime >= 20n * 1000n) {
         const depositionEntries = await this._queryValidDepositionRequests();
