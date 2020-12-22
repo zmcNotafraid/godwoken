@@ -136,7 +136,7 @@ export class Runner {
       // TODO: figure out next block context values
       next_block_context: {
         aggregator_id: "0x0",
-        timestamp: "0x0",
+        timestamp: "0x" + (BigInt(Date.now()) / 1000n).toString(16),
       },
     };
     // TODO: process sync event.
