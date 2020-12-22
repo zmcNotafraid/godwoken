@@ -1,18 +1,21 @@
-import { RPC } from "ckb-js-toolkit";
-import { DepositionRequest } from "@ckb-godwoken/godwoken";
-import { Cell, Hash, Transaction, QueryOptions } from "@ckb-lumos/base";
+import { normalizers, RPC } from "ckb-js-toolkit";
+import {
+  core,
+  Cell,
+  Hash,
+  Transaction,
+  TransactionWithStatus,
+  QueryOptions,
+} from "@ckb-lumos/base";
 import {
   Indexer,
   CellCollector,
   TransactionCollector,
 } from "@ckb-lumos/indexer";
-import {
-  Config,
-  ChainService,
-  HeaderInfo,
-  SubmitTxs,
-} from "@ckb-godwoken/godwoken";
+import { Config, ChainService, SubmitTxs } from "@ckb-godwoken/godwoken";
 import { DeploymentConfig } from "./config";
+import { SerializeHeaderInfo } from "../schemas/godwoken";
+import { DepositionRequest, HeaderInfo, NormalizeHeaderInfo } from "./types";
 import {
   DepositionEntry,
   scanDepositionCellsInCommittedL2Block,
@@ -99,10 +102,6 @@ export class Runner {
   }
 
   async _syncL2Block(transaction: Transaction, headerInfo: HeaderInfo) {
-    const txInfo = {
-      transaction,
-      block_hash: headerInfo.block_hash,
-    };
     const depositionRequests = await scanDepositionCellsInCommittedL2Block(
       transaction,
       this.deploymentConfig,
@@ -111,12 +110,12 @@ export class Runner {
     const context: SubmitTxs = {
       type: "submit_txs",
       deposition_requests: depositionRequests,
-      // TODO: this will be removed later
-      withdrawal_requests: [],
     };
     const update = {
-      transaction_info: txInfo,
-      header_info: headerInfo,
+      transaction: core.SerializeTransaction(
+        normalizers.NormalizeTransaction(transaction)
+      ),
+      header_info: SerializeHeaderInfo(NormalizeHeaderInfo(headerInfo)),
       context,
     };
     const syncParam = {
@@ -157,16 +156,7 @@ export class Runner {
 
   async start() {
     // Wait for indexer sync
-    while (true) {
-      const tip = await this.indexer.tip();
-      const ckbTip = await this.rpc.get_tip_block_number();
-
-      if (BigInt(ckbTip) - BigInt(tip.block_number) <= 3n) {
-        break;
-      }
-
-      await asyncSleep(1000);
-    }
+    await this.indexer.waitForSync();
 
     // Use rollup type hash to look for transactions in a backwards fashion, using those
     // transactions, we can then rebuild godwoken internal states. In a future version
@@ -185,10 +175,9 @@ export class Runner {
     // TODO: confirm how genesis will be handled later. If genesis is handled
     // in chain service initialization, we need to skip one transaction here.
     for await (const result of committedL2BlockCollector.collect()) {
-      // lumos quirk
-      const txWithStatus = result as any;
+      const txWithStatus = result as TransactionWithStatus;
       const transaction: Transaction = txWithStatus.transaction;
-      const blockHash: Hash = txWithStatus.tx_status.block_hash;
+      const blockHash: Hash = txWithStatus.tx_status.block_hash!;
       const header = await this.rpc.get_header(blockHash);
       const headerInfo = {
         number: header.number,

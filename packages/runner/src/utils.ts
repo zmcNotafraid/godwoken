@@ -8,9 +8,12 @@ import {
   since as sinceUtils,
   utils,
 } from "@ckb-lumos/base";
-import { DepositionRequest } from "@ckb-godwoken/godwoken";
 import { DeploymentConfig } from "./config";
-import { DepositionLockArgs } from "../schemas/godwoken";
+import { DepositionRequest, NormalizeDepositionRequest } from "./types";
+import {
+  DepositionLockArgs,
+  SerializeDepositionRequest,
+} from "../schemas/godwoken";
 
 const { DenormalizeScript } = denormalizers;
 const { readBigUInt128LE } = utils;
@@ -19,8 +22,8 @@ export async function scanDepositionCellsInCommittedL2Block(
   l2Block: Transaction,
   config: DeploymentConfig,
   rpc: RPC
-): Promise<Array<DepositionRequest>> {
-  const results: Array<DepositionRequest> = [];
+): Promise<Array<ArrayBuffer>> {
+  const results: Array<ArrayBuffer> = [];
   for (const input of l2Block.inputs) {
     const cell = await resolveOutPoint(input.previous_output, rpc);
     const entry = await tryExtractDepositionRequest(cell, config);
@@ -53,7 +56,8 @@ async function resolveOutPoint(outPoint: OutPoint, rpc: RPC): Promise<Cell> {
 
 export interface DepositionEntry {
   cell: Cell;
-  request: DepositionRequest;
+  // Packed binary of gw_types::packed::DepositionRequest type
+  request: ArrayBuffer;
 }
 
 export async function tryExtractDepositionRequest(
@@ -88,14 +92,10 @@ export async function tryExtractDepositionRequest(
       return undefined;
     }
   }
-  const isSudt = !!cell.cell_output.type;
-  let amount;
-  if (isSudt) {
+  let amount = "0x0";
+  if (!!cell.cell_output.type) {
     // SUDT
     amount = "0x" + readBigUInt128LE(cell.data).toString(16);
-  } else {
-    // CKB
-    amount = cell.cell_output.capacity;
   }
   const sudtScript = cell.cell_output.type || {
     code_hash:
@@ -103,12 +103,17 @@ export async function tryExtractDepositionRequest(
     hash_type: "data",
     args: "0x",
   };
+  const depositionRequest = {
+    amount,
+    capacity: cell.cell_output.capacity,
+    script: DenormalizeScript(lockArgs.getLayer2Lock()),
+    sudtScript,
+  };
+  const request = SerializeDepositionRequest(
+    NormalizeDepositionRequest(depositionRequest)
+  );
   return {
     cell,
-    request: {
-      script: DenormalizeScript(lockArgs.getLayer2Lock()),
-      sudt_script: sudtScript,
-      amount,
-    },
+    request,
   };
 }

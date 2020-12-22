@@ -37,7 +37,7 @@ export interface Revert {
 
 export interface ProduceBlockParam {
   aggregator_id: HexNumber;
-  tx_pool_pkg: TxPoolPackage;
+  deposition_requests: ArrayBuffer[]; // Vec<gw_types::packed::DepositionRequest>
 }
 
 export interface TxPoolPackage {

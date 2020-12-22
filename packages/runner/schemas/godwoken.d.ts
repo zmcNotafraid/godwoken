@@ -63,6 +63,8 @@ export class GlobalState {
   validate(compatible?: boolean): void;
   getAccount(): AccountMerkleState;
   getBlock(): BlockMerkleState;
+  getRevertedBlockRoot(): Byte32;
+  getLastFinalizedBlockNumber(): Uint64;
   getStatus(): Status;
 }
 
@@ -87,16 +89,6 @@ export class Reverting {
   static size(): Number;
   getNextBlockNumber(): Uint64;
   getChallengerId(): Uint32;
-}
-
-export function SerializeAccount(value: object): ArrayBuffer;
-export class Account {
-  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
-  validate(compatible?: boolean): void;
-  static size(): Number;
-  getId(): Uint32;
-  getNonce(): Uint32;
-  getScriptHash(): Byte32;
 }
 
 export function SerializeRawL2Transaction(value: object): ArrayBuffer;
@@ -135,7 +127,8 @@ export class RawL2Block {
   getTimestamp(): Uint64;
   getPrevAccount(): AccountMerkleState;
   getPostAccount(): AccountMerkleState;
-  getSubmitTransactions(): SubmitTransactionsOpt;
+  getSubmitTransactions(): SubmitTransactions;
+  getWithdrawalRequestsRoot(): Byte32;
 }
 
 export function SerializeL2Block(value: object): ArrayBuffer;
@@ -148,6 +141,47 @@ export class L2Block {
   getKvStateProof(): Bytes;
   getTransactions(): L2TransactionVec;
   getBlockProof(): Bytes;
+  getWithdrawalRequests(): WithdrawalRequestVec;
+}
+
+export function SerializeDepositionRequest(value: object): ArrayBuffer;
+export class DepositionRequest {
+  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
+  validate(compatible?: boolean): void;
+  getCapacity(): Uint64;
+  getAmount(): Uint128;
+  getSudtScript(): Script;
+  getScript(): Script;
+}
+
+export function SerializeRawWithdrawalRequest(value: object): ArrayBuffer;
+export class RawWithdrawalRequest {
+  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
+  validate(compatible?: boolean): void;
+  static size(): Number;
+  getNonce(): Uint32;
+  getCapacity(): Uint64;
+  getAmount(): Uint128;
+  getLockHash(): Byte32;
+  getSudtScriptHash(): Byte32;
+  getAccountScriptHash(): Byte32;
+}
+
+export function SerializeWithdrawalRequestVec(value: Array<object>): ArrayBuffer;
+export class WithdrawalRequestVec {
+  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
+  validate(compatible?: boolean): void;
+  indexAt(i: number): WithdrawalRequest;
+  length(): number;
+}
+
+export function SerializeWithdrawalRequest(value: object): ArrayBuffer;
+export class WithdrawalRequest {
+  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
+  validate(compatible?: boolean): void;
+  static size(): Number;
+  getRaw(): RawWithdrawalRequest;
+  getSignature(): Signature;
 }
 
 export function SerializeSubmitTransactions(value: object): ArrayBuffer;
@@ -157,46 +191,6 @@ export class SubmitTransactions {
   getTxWitnessRoot(): Byte32;
   getTxCount(): Uint32;
   getCompactedPostRootList(): Byte32Vec;
-}
-
-export function SerializeLeave(value: object): ArrayBuffer;
-export class Leave {
-  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
-  validate(compatible?: boolean): void;
-}
-
-export function SerializeRevertChain(value: object): ArrayBuffer;
-export class RevertChain {
-  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
-  validate(compatible?: boolean): void;
-  static size(): Number;
-  getReverterId(): Uint32;
-  getInvalidBlockNumber(): Uint64;
-  getPostAccount(): AccountMerkleState;
-}
-
-export function SerializeLeaveOpt(value: object | null): ArrayBuffer;
-export class LeaveOpt {
-  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
-  validate(compatible?: boolean): void;
-  value(): Leave;
-  hasValue(): boolean;
-}
-
-export function SerializeRevertChainOpt(value: object | null): ArrayBuffer;
-export class RevertChainOpt {
-  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
-  validate(compatible?: boolean): void;
-  value(): RevertChain;
-  hasValue(): boolean;
-}
-
-export function SerializeSubmitTransactionsOpt(value: object | null): ArrayBuffer;
-export class SubmitTransactionsOpt {
-  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
-  validate(compatible?: boolean): void;
-  value(): SubmitTransactions;
-  hasValue(): boolean;
 }
 
 export function SerializeKVPair(value: object): ArrayBuffer;
@@ -242,10 +236,61 @@ export function SerializeDepositionLockArgs(value: object): ArrayBuffer;
 export class DepositionLockArgs {
   constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
   validate(compatible?: boolean): void;
-  getRollupTypeHash(): Byte32;
+  getOwnerLockHash(): Byte32;
   getLayer2Lock(): Script;
   getCancelTimeout(): Uint64;
+}
+
+export function SerializeCustodianLockArgs(value: object): ArrayBuffer;
+export class CustodianLockArgs {
+  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
+  validate(compatible?: boolean): void;
+  static size(): Number;
   getOwnerLockHash(): Byte32;
+  getDepositionBlockHash(): Byte32;
+  getDepositionBlockNumber(): Uint64;
+}
+
+export function SerializeWithdrawalLockArgs(value: object): ArrayBuffer;
+export class WithdrawalLockArgs {
+  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
+  validate(compatible?: boolean): void;
+  getCustodianLockArgs(): CustodianLockArgs;
+  getCustodianLockHash(): Byte32;
+  getWithdrawalBlockHash(): Byte32;
+  getWithdrawalBlockNumber(): Uint64;
+  getSudtScriptHash(): Byte32;
+  getSellAmount(): Uint128;
+  getOwnerLock(): Script;
+}
+
+export function SerializeUnlockWithdrawal(value: UnionType): ArrayBuffer;
+export class UnlockWithdrawal {
+  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
+  validate(compatible?: boolean): void;
+  unionType(): string;
+  value(): any;
+}
+
+export function SerializeUnlockWithdrawalViaFinalize(value: object): ArrayBuffer;
+export class UnlockWithdrawalViaFinalize {
+  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
+  validate(compatible?: boolean): void;
+  getBlockProof(): Bytes;
+}
+
+export function SerializeUnlockWithdrawalViaRevert(value: object): ArrayBuffer;
+export class UnlockWithdrawalViaRevert {
+  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
+  validate(compatible?: boolean): void;
+  getBlockProof(): Bytes;
+}
+
+export function SerializeUnlockWithdrawalViaTrade(value: object): ArrayBuffer;
+export class UnlockWithdrawalViaTrade {
+  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
+  validate(compatible?: boolean): void;
+  getOwnerLock(): Script;
 }
 
 export function SerializeStakeLockArgs(value: object): ArrayBuffer;
@@ -253,10 +298,9 @@ export class StakeLockArgs {
   constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
   validate(compatible?: boolean): void;
   static size(): Number;
-  getRollupTypeHash(): Byte32;
   getOwnerLockHash(): Byte32;
   getSigningPubkeyHash(): Byte20;
-  getFinalizeBlockNumber(): Uint64;
+  getStakeBlockNumber(): Uint64;
 }
 
 export function SerializeMetaContractArgs(value: UnionType): ArrayBuffer;
@@ -300,16 +344,6 @@ export class SUDTTransfer {
   getFee(): Uint128;
 }
 
-export function SerializeSUDTPrepareWithdrawal(value: object): ArrayBuffer;
-export class SUDTPrepareWithdrawal {
-  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
-  validate(compatible?: boolean): void;
-  static size(): Number;
-  getWithdrawalLockHash(): Byte32;
-  getAmount(): Uint128;
-  getFee(): Uint128;
-}
-
 export function SerializeStartChallenge(value: object): ArrayBuffer;
 export class StartChallenge {
   constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
@@ -328,6 +362,15 @@ export class CancelChallenge {
   getBlockProof(): Bytes;
   getKvState(): KVPairVec;
   getKvStateProof(): Bytes;
+}
+
+export function SerializeHeaderInfo(value: object): ArrayBuffer;
+export class HeaderInfo {
+  constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
+  validate(compatible?: boolean): void;
+  static size(): Number;
+  getNumber(): Uint64;
+  getBlockHash(): Byte32;
 }
 
 export function SerializeUint32(value: CanCastToArrayBuffer): ArrayBuffer;
