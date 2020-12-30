@@ -189,7 +189,7 @@ declare_types! {
                 Ok(()) => {
                     Ok(cx.undefined().upcast())
                 }
-                Err(e) => cx.throw_error(format!("Chain submit L2Transaction failed: {:?}", e))
+                Err(e) => cx.throw_error(format!("Chain submit WithdrawalRequest failed: {:?}", e))
             }
         }
 
