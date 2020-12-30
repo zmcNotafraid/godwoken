@@ -10,7 +10,6 @@ import {
   HexString,
   Script,
   Transaction,
-  TransactionWithStatus,
   QueryOptions,
   Indexer,
 } from "@ckb-lumos/base";
@@ -46,7 +45,6 @@ import * as secp256k1 from "secp256k1";
 import { exit } from "process";
 
 const FINALIZED_BLOCKS = 100;
-const DEFAULT_CUSTODIAN_LOCK_ARGS = "0x";
 function isRollupTransction(
   tx: Transaction,
   rollupTypeScript: Script
@@ -67,9 +65,20 @@ function isRollupTransction(
 
 function buildDefaultCustodianLockArgs() {
   return {
-    depositionLockArgs: "",
-    depositionBlockHash: "",
-    depositionBlockNumber: "",
+    depositionLockArgs: {
+      owner_lock_hash:
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+      layer2_lock: {
+        code_hash:
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+        hash_type: "type",
+        args: "0x",
+      },
+      cancel_timeout: "0x0",
+    },
+    depositionBlockHash:
+      "0x0000000000000000000000000000000000000000000000000000000000000000",
+    depositionBlockNumber: "0x0",
   };
 }
 
@@ -370,7 +379,7 @@ export class Runner {
       const lock = {
         code_hash: this.config.deploymentConfig.custodian_lock.code_hash,
         hash_type: this.config.deploymentConfig.custodian_lock.hash_type,
-        args: this._packCusotidanLockArgs(custodianLockArgs),
+        args: this._packCustodianLockArgs(custodianLockArgs),
       };
       return {
         cell_output: {
@@ -685,7 +694,7 @@ export class Runner {
       const custodianLock: Script = {
         code_hash: this.config.deploymentConfig.custodian_lock.code_hash,
         hash_type: this.config.deploymentConfig.custodian_lock.hash_type,
-        args: DEFAULT_CUSTODIAN_LOCK_ARGS,
+        args: this._packCustodianLockArgs(buildDefaultCustodianLockArgs()),
       };
       const custodianType: Script = {
         code_hash: this.config.deploymentConfig.sudt_type.code_hash,
@@ -722,7 +731,7 @@ export class Runner {
     const custodianLock: Script = {
       code_hash: this.config.deploymentConfig.custodian_lock.code_hash,
       hash_type: this.config.deploymentConfig.custodian_lock.hash_type,
-      args: DEFAULT_CUSTODIAN_LOCK_ARGS,
+      args: this._packCustodianLockArgs(buildDefaultCustodianLockArgs()),
     };
     let ckbChangeCustodian: Cell = {
       cell_output: {
@@ -846,7 +855,7 @@ export class Runner {
       toBlock: toBlock,
     };
   }
-  _packCusotidanLockArgs(custodianLockArgs: object): HexString {
+  _packCustodianLockArgs(custodianLockArgs: object): HexString {
     const packedCustodianLockArgs = schemas.SerializeCustodianLockArgs(
       types.NormalizeCustodianLockArgs(custodianLockArgs)
     );
