@@ -15,7 +15,7 @@ use gw_common::{
     error::Error as StateError,
     h256_ext::H256Ext,
     state::{build_account_field_key, State, GW_ACCOUNT_NONCE},
-    CKB_NON_SUDT_CHECK_ARGS, H256,
+    CKB_SUDT_SCRIPT_ARGS, H256,
 };
 use gw_types::{
     core::ScriptHashType,
@@ -124,7 +124,7 @@ impl Generator {
         // check sudt balance
         // when sudt_script_hash is [0u8;32] means only withdraw ckb in the withdrawal_request,
         // otherwise check the sudt existence and balance.
-        if sudt_script_hash != CKB_NON_SUDT_CHECK_ARGS {
+        if sudt_script_hash != CKB_SUDT_SCRIPT_ARGS {
             let l2_sudt_script: Script = build_l2_sudt_script(sudt_script_hash);
             let l2_sudt_script_hash: [u8; 32] = l2_sudt_script.hash();
             let sudt_id = state
