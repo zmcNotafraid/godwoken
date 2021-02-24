@@ -62,9 +62,11 @@ export class GlobalState {
   constructor(reader: CanCastToArrayBuffer, options?: CreateOptions);
   validate(compatible?: boolean): void;
   static size(): Number;
+  getRollupConfigHash(): Byte32;
   getAccount(): AccountMerkleState;
   getBlock(): BlockMerkleState;
   getRevertedBlockRoot(): Byte32;
+  getTipBlockHash(): Byte32;
   getLastFinalizedBlockNumber(): Uint64;
   getStatus(): number;
 }

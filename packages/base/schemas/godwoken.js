@@ -252,6 +252,10 @@
       }
     }
 
+    getRollupConfigHash() {
+      return new Byte32(this.view.buffer.slice(0, 0 + Byte32.size()), { validate: false });
+    }
+
     getAccount() {
       return new AccountMerkleState(this.view.buffer.slice(0, 0 + AccountMerkleState.size()), { validate: false });
     }
@@ -264,6 +268,10 @@
       return new Byte32(this.view.buffer.slice(0 + AccountMerkleState.size() + BlockMerkleState.size(), 0 + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size()), { validate: false });
     }
 
+    getTipBlockHash() {
+      return new Byte32(this.view.buffer.slice(0 + Byte32.size() + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size(), 0 + Byte32.size() + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size() + Byte32.size()), { validate: false });
+    }
+
     getLastFinalizedBlockNumber() {
       return new Uint64(this.view.buffer.slice(0 + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size(), 0 + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size() + Uint64.size()), { validate: false });
     }
@@ -274,26 +282,31 @@
 
     validate(compatible = false) {
       assertDataLength(this.view.byteLength, GlobalState.size());
+      this.getRollupConfigHash().validate(compatible);
       this.getAccount().validate(compatible);
       this.getBlock().validate(compatible);
       this.getRevertedBlockRoot().validate(compatible);
+      this.getTipBlockHash().validate(compatible);
       this.getLastFinalizedBlockNumber().validate(compatible);
     }
     static size() {
-      return 0 + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size() + Uint64.size() + 1;
+      return 0 + Byte32.size() + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size() + Byte32.size() + Uint64.size() + 1;
     }
   }
 
   function SerializeGlobalState(value) {
-    const array = new Uint8Array(0 + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size() + Uint64.size() + 1);
+    const array = new Uint8Array(0 + Byte32.size() + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size() + Byte32.size() + Uint64.size() + 1);
     const view = new DataView(array.buffer);
-    array.set(new Uint8Array(SerializeAccountMerkleState(value.account)), 0);
-    array.set(new Uint8Array(SerializeBlockMerkleState(value.block)), 0 + AccountMerkleState.size());
-    array.set(new Uint8Array(SerializeByte32(value.reverted_block_root)), 0 + AccountMerkleState.size() + BlockMerkleState.size());
-    array.set(new Uint8Array(SerializeUint64(value.last_finalized_block_number)), 0 + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size());
-    view.setUint8(0 + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size() + Uint64.size(), value.status);
+    array.set(new Uint8Array(SerializeByte32(value.rollup_config_hash)), 0);
+    array.set(new Uint8Array(SerializeAccountMerkleState(value.account)), 0 + Byte32.size());
+    array.set(new Uint8Array(SerializeBlockMerkleState(value.block)), 0 + Byte32.size() + AccountMerkleState.size());
+    array.set(new Uint8Array(SerializeByte32(value.reverted_block_root)), 0 + Byte32.size() + AccountMerkleState.size() + BlockMerkleState.size());
+    array.set(new Uint8Array(SerializeByte32(value.tip_block_hash)), 0 + Byte32.size() + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size());
+    array.set(new Uint8Array(SerializeUint64(value.last_finalized_block_number)), 0 + Byte32.size() + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size() + Byte32.size());
+    view.setUint8(0 + Byte32.size() + AccountMerkleState.size() + BlockMerkleState.size() + Byte32.size() + Byte32.size() + Uint64.size(), value.status);
     return array.buffer;
   }
+
 
   class RawL2Transaction {
     constructor(reader, { validate = true } = {}) {
@@ -1958,12 +1971,12 @@
       return this.view.buffer;
     }
 
-    toBigEndianBigUint64() {	
-      return this.view.getBigUint64(0, false);	
-    }	
+    toBigEndianBigUint64() {
+      return this.view.getBigUint64(0, false);
+    }
 
-    toLittleEndianBigUint64() {	
-      return this.view.getBigUint64(0, true);	
+    toLittleEndianBigUint64() {
+      return this.view.getBigUint64(0, true);
     }
 
     static size() {
